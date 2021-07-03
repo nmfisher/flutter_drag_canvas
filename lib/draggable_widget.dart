@@ -72,6 +72,9 @@ class DraggableWidget extends StatefulWidget {
   /// Touch Delay Duration. Default value is zero. When set, drag operations will trigger after the duration.
   final Duration touchDelay;
 
+  final double initialHeight;
+  final double initialWidth;
+
   DraggableWidget({
     Key? key,
     required this.child,
@@ -80,6 +83,8 @@ class DraggableWidget extends StatefulWidget {
     this.initialVisibility = true,
     this.margin = EdgeInsets.zero,
     this.shadowBorderRadius = 10,
+    required this.initialHeight,
+    required this.initialWidth,
     this.dragController,
     this.touchDelay = Duration.zero,
     this.normalShadow = const BoxShadow(
@@ -99,6 +104,45 @@ class DraggableWidget extends StatefulWidget {
   });
   @override
   _DraggableWidgetState createState() => _DraggableWidgetState();
+
+  ///
+  /// Calculates the [Offset] (relative to a container of size [containerSize]) of an item of size [itemSize] anchored at [position].
+  /// In other words, "convert the AnchoringPosition of this item anchored in this container to an Offset that describes where it is inside the container".
+  /// Note this returns an Offset to the center of the item, not the top left.
+  ///
+  static Offset getOffsetForPosition(
+      AnchoringPosition position, Size itemSize, Size containerSize) {
+    Offset offset = Offset.zero;
+    switch (position) {
+      case AnchoringPosition.topLeft:
+        offset = Offset.zero;
+        break;
+      case AnchoringPosition.topRight:
+        offset = Offset(containerSize.width - itemSize.width, 0);
+        break;
+      case AnchoringPosition.bottomLeft:
+        offset = Offset(0, containerSize.height - itemSize.height);
+        break;
+      case AnchoringPosition.bottomRight:
+        offset = Offset(containerSize.width - itemSize.width,
+            containerSize.height - itemSize.height);
+        break;
+      case AnchoringPosition.center:
+        offset = Offset((containerSize.width - itemSize.width) / 2,
+            (containerSize.height - itemSize.height) / 2);
+        break;
+      case AnchoringPosition.topCenter:
+        offset = Offset((containerSize.width - itemSize.width) / 2, 0);
+        break;
+      case AnchoringPosition.bottomCenter:
+        offset = Offset((containerSize.width - itemSize.width) / 2,
+            containerSize.height - itemSize.height);
+        break;
+      default:
+        throw Exception();
+    }
+    return offset;
+  }
 }
 
 class _DraggableWidgetState extends State<DraggableWidget>
@@ -111,7 +155,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
   ///
   /// The target rect where the draggable widget is moving to (meaning the Offset where the widget will end up when it has finished moving).
   ///
-  RelativeRect _targetRect = RelativeRect.fill;
+  late RelativeRect _targetRect;
 
   ///
   /// A convenience getter to calculate the boundary Rect that surrounds the draggable widget;
@@ -119,8 +163,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
   Size? containerSize;
 
   late AnimationController animationController;
-  Animation<RelativeRect> animation =
-      AlwaysStoppedAnimation<RelativeRect>(RelativeRect.fill);
+  Animation<RelativeRect>? animation;
 
   bool offstage = true;
 
@@ -129,12 +172,6 @@ class _DraggableWidgetState extends State<DraggableWidget>
   /// or it may be moving towards this position after a drag was released.
 
   AnchoringPosition? anchorPosition;
-
-  ///
-  /// The height of the contents of the draggable widget. This is calculated.
-  ///
-  double widgetHeight = 18;
-  double widgetWidth = 50;
 
   final key = GlobalKey();
 
@@ -146,33 +183,6 @@ class _DraggableWidgetState extends State<DraggableWidget>
 
   late bool isStillTouching;
 
-  static Offset getOffsetForPosition(
-      AnchoringPosition position, Rect item, Size containerSize) {
-    Offset offset = Offset.zero;
-    switch (position) {
-      case AnchoringPosition.bottomRight:
-        offset.translate(containerSize.width - item.width,
-            containerSize.height - item.height);
-        break;
-      case AnchoringPosition.bottomLeft:
-        offset.translate(0, containerSize.height - item.height);
-        break;
-      case AnchoringPosition.topRight:
-        offset.translate(containerSize.width - item.width, 0);
-        break;
-      case AnchoringPosition.bottomCenter:
-        offset.translate((containerSize.width - item.width) / 2,
-            (containerSize.height - item.height) / 2);
-        break;
-      case AnchoringPosition.topCenter:
-        offset.translate((containerSize.width - item.width) / 2, 0);
-        break;
-      default:
-        throw Exception("Unrecognized offset");
-    }
-    return offset;
-  }
-
   @override
   void initState() {
     anchorPosition = widget.initialPosition;
@@ -181,12 +191,15 @@ class _DraggableWidgetState extends State<DraggableWidget>
       vsync: this,
       duration: Duration(milliseconds: 150),
     )
-      ..addListener(() {})
+      ..addListener(() {
+        setState(() {});
+      })
       ..addStatusListener(
         (status) {
           if (status == AnimationStatus.completed) {
             _currentOffset = Offset(_targetRect.left, _targetRect.top);
           }
+          print("Set current offset to $_currentOffset");
         },
       );
 
@@ -195,21 +208,21 @@ class _DraggableWidgetState extends State<DraggableWidget>
     WidgetsBinding.instance!.addPostFrameCallback((timeStamp) async {
       var rb = context.findRenderObject() as RenderBox;
       containerSize = rb.constraints.biggest;
-      final widgetSize = getWidgetSize(key);
-      if (widgetSize != null) {
-        setState(() {
-          widgetHeight = widgetSize.height;
-          widgetWidth = widgetSize.width;
-        });
-      }
 
       await Future.delayed(Duration(
         milliseconds: 100,
       ));
       setState(() {
         offstage = false;
-        _currentOffset = getOffsetForPosition(widget.initialPosition,
-            Rect.fromLTWH(0, 0, widgetWidth, widgetHeight), containerSize!);
+        _currentOffset = DraggableWidget.getOffsetForPosition(
+            widget.initialPosition,
+            Size(widget.initialWidth, widget.initialHeight),
+            containerSize!);
+        _targetRect = RelativeRect.fromSize(
+            Rect.fromLTWH(0, 0, widget.initialWidth, widget.initialHeight),
+            containerSize!);
+        _targetRect.shift(_currentOffset);
+        animation = AlwaysStoppedAnimation<RelativeRect>(_targetRect);
       });
     });
     super.initState();
@@ -219,22 +232,6 @@ class _DraggableWidgetState extends State<DraggableWidget>
   void dispose() {
     animationController.dispose();
     super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(DraggableWidget oldWidget) {
-    if (offstage == false) {
-      WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
-        final widgetSize = getWidgetSize(key);
-        if (widgetSize != null) {
-          setState(() {
-            widgetHeight = widgetSize.height;
-            widgetWidth = widgetSize.width;
-          });
-        }
-      });
-    }
-    super.didUpdateWidget(oldWidget);
   }
 
   AnchoringPosition _calculateAnchorPosition(double x, double y) {
@@ -266,59 +263,30 @@ class _DraggableWidgetState extends State<DraggableWidget>
     }
   }
 
-  void _setTargetOffsetFromPosition(AnchoringPosition target) {
-    late Offset _targetOffset;
-    switch (target) {
-      case AnchoringPosition.topLeft:
-        _targetOffset = Offset.zero;
-        break;
-      case AnchoringPosition.topRight:
-        _targetOffset = Offset(containerSize!.width - widgetWidth, 0);
-        break;
-      case AnchoringPosition.bottomLeft:
-        _targetOffset = Offset(0, containerSize!.height - widgetHeight);
-        break;
-      case AnchoringPosition.bottomRight:
-        _targetOffset = Offset(containerSize!.width - widgetWidth,
-            containerSize!.height - widgetHeight);
-        break;
-      case AnchoringPosition.center:
-        _targetOffset = Offset((containerSize!.width - widgetWidth) / 2,
-            (containerSize!.height - widgetHeight) / 2);
-        break;
-      case AnchoringPosition.topCenter:
-        _targetOffset = Offset(containerSize!.width / 2, 0);
-        break;
-      case AnchoringPosition.bottomCenter:
-        _targetOffset = Offset(
-            containerSize!.width / 2, containerSize!.height - widgetHeight);
-        break;
-      default:
-        throw Exception();
-    }
+  void _setTargetOffsetFromPosition(
+      AnchoringPosition target, Animation<double> controller,
+      {Size? size}) {
+        // if size is null, assume we want to animate to inflate to the container size
+    final widgetSize = size ?? containerSize!;
+    
+    Offset _targetOffset = DraggableWidget.getOffsetForPosition(
+        target, widgetSize, containerSize!);
 
-    var begin =
-        RelativeRect.fromLTRB(_currentOffset.dx, _currentOffset.dy, 0, 0);
-    _targetRect =
-        RelativeRect.fromLTRB(_targetOffset.dx, _targetOffset.dy, 0, 0);
+    var begin = RelativeRect.fromSize(
+        Rect.fromLTWH(_currentOffset.dx, _currentOffset.dy, widgetSize.width, widgetSize.height),
+        containerSize!);
 
+    _targetRect = RelativeRect.fromSize(
+        Rect.fromLTWH(_targetOffset.dx, _targetOffset.dy, widgetSize.width, widgetSize.height),
+        containerSize!);
+    
     animation = RelativeRectTween(
       begin: begin,
       end: _targetRect,
     ).animate(CurvedAnimation(
-      parent: animationController,
+      parent: controller,
       curve: Curves.easeInOut,
     ));
-  }
-
-  Size? getWidgetSize(GlobalKey key) {
-    final keyContext = key.currentContext;
-    if (keyContext != null) {
-      final box = keyContext.findRenderObject() as RenderBox;
-      return box.size;
-    } else {
-      return null;
-    }
   }
 
   void _showWidget() {
@@ -333,22 +301,30 @@ class _DraggableWidgetState extends State<DraggableWidget>
     });
   }
 
-  void _animateTo(AnchoringPosition position) async {
+  Future _animateTo(AnchoringPosition position,
+      {Size? size }) async {
     if (animationController.isAnimating) {
       animationController.stop();
     }
     animationController.reset();
-    _setTargetOffsetFromPosition(position);
 
-    await animationController.forward();
+    _setTargetOffsetFromPosition(position, animationController,
+        size: size);
+
+      await animationController.forward();
     if (widget.onAnchor != null) widget.onAnchor!(position);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(children: [
-      PositionedTransition(
-        rect: animation,
+    // we need to wait one frame for the container dimensions to be calculated
+    if (animation == null) {
+      return Container();
+    }
+
+    return Stack(fit: StackFit.loose, children: [
+      Positioned.fromRelativeRect(
+        rect: animation!.value,
         child: AnimatedSwitcher(
           duration: Duration(
             milliseconds: 150,
@@ -379,7 +355,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
                     setState(() {
                       dragging = false;
                     });
-                    _animateTo(anchorPosition!);
+                    _animateTo(anchorPosition!, size:_targetRect.toSize(containerSize!));
                   },
                   onPointerDown: (v) async {
                     if (widget.dragController?.disabled == true) return;
@@ -397,25 +373,30 @@ class _DraggableWidgetState extends State<DraggableWidget>
                       animationController.reset();
                     }
                     if (widget.onPointerMove != null) widget.onPointerMove!();
+                    final widgetSize = _targetRect.toSize(containerSize!);
 
                     _currentOffset = (context.findRenderObject() as RenderBox)
                         .globalToLocal(v.position);
                     _currentOffset = Offset(
-                        max(0, min(containerSize!.width - widgetWidth, _currentOffset.dx)),
-                        max(0, min(containerSize!.height - widgetHeight, _currentOffset.dy)));
-                        
+                        max(
+                            0,
+                            min(containerSize!.width - widgetSize.width,
+                                _currentOffset.dx)),
+                        max(
+                            0,
+                            min(containerSize!.height - widgetSize.height,
+                                _currentOffset.dy)));
+
                     animation = AlwaysStoppedAnimation<RelativeRect>(
                         RelativeRect.fromRect(
                             Rect.fromLTWH(_currentOffset.dx, _currentOffset.dy,
-                                widgetWidth, widgetHeight),
+                                widgetSize.width, widgetSize.height),
                             Offset.zero & containerSize!));
                     setState(() {});
-
                   },
                   child: Offstage(
                     offstage: offstage,
                     child: Container(
-                      color: Colors.red,
                       padding: widget.padding,
                       alignment: Alignment.topLeft,
                       child: AnimatedContainer(
@@ -430,9 +411,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
                                   : widget.normalShadow
                             ],
                           ),
-                          child:
-                              widget.child
-                          ),
+                          child: widget.child),
                     ),
                   ),
                 ),

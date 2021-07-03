@@ -16,8 +16,12 @@ class DragController {
   }
 
   /// Jump to any [AnchoringPosition] programatically
-  void jumpTo(AnchoringPosition anchoringPosition) {
-    _widgetState._animateTo(anchoringPosition);
+  Future jumpTo(AnchoringPosition anchoringPosition) {
+    return _widgetState._animateTo(anchoringPosition);
+  }
+
+  void animateTo(AnchoringPosition position, { Size? size }) {
+    _widgetState._animateTo(position, size:size);
   }
 
   /// Get the current screen [Offset] of the widget
