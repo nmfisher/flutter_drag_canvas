@@ -33,7 +33,7 @@ class DraggableWidget extends StatefulWidget {
   /// The padding around the widget
   final EdgeInsets padding;
 
-  /// Initial location of the widget, default to [AnchoringPosition.bottomRight]
+  /// Initial location of the widget, default to [AnchoringPosition.bottomLeft]
   final AnchoringPosition initialPosition;
 
   /// Intially should the widget be visible or not, default to [true]
@@ -57,7 +57,7 @@ class DraggableWidget extends StatefulWidget {
   ///    blurRadius: 2,
   ///  ),
   /// ```
-  final BoxShadow normalShadow;
+  final BoxShadow? normalShadow;
 
   /// [BoxShadow] when the widget is being dragged
   ///```Dart
@@ -67,7 +67,7 @@ class DraggableWidget extends StatefulWidget {
   ///    blurRadius: 10,
   ///  ),
   /// ```
-  final BoxShadow draggingShadow;
+  final BoxShadow? draggingShadow;
 
   /// Touch Delay Duration. Default value is zero. When set, drag operations will trigger after the duration.
   final Duration touchDelay;
@@ -79,7 +79,7 @@ class DraggableWidget extends StatefulWidget {
     Key? key,
     required this.child,
     this.padding = EdgeInsets.zero,
-    this.initialPosition = AnchoringPosition.bottomRight,
+    this.initialPosition = AnchoringPosition.bottomLeft,
     this.initialVisibility = true,
     this.margin = EdgeInsets.zero,
     this.shadowBorderRadius = 10,
@@ -199,7 +199,6 @@ class _DraggableWidgetState extends State<DraggableWidget>
           if (status == AnimationStatus.completed) {
             _currentOffset = Offset(_targetRect.left, _targetRect.top);
           }
-          print("Set current offset to $_currentOffset");
         },
       );
 
@@ -209,9 +208,6 @@ class _DraggableWidgetState extends State<DraggableWidget>
       var rb = context.findRenderObject() as RenderBox;
       containerSize = rb.constraints.biggest;
 
-      await Future.delayed(Duration(
-        milliseconds: 100,
-      ));
       setState(() {
         offstage = false;
         _currentOffset = DraggableWidget.getOffsetForPosition(
@@ -219,7 +215,10 @@ class _DraggableWidgetState extends State<DraggableWidget>
             Size(widget.initialWidth, widget.initialHeight),
             containerSize!);
         _targetRect = RelativeRect.fromSize(
-            Rect.fromLTWH(0, 0, widget.initialWidth, widget.initialHeight),
+            Rect.fromPoints(
+                _currentOffset,
+                _currentOffset.translate(
+                    widget.initialWidth, widget.initialHeight)),
             containerSize!);
         _targetRect.shift(_currentOffset);
         animation = AlwaysStoppedAnimation<RelativeRect>(_targetRect);
@@ -266,20 +265,22 @@ class _DraggableWidgetState extends State<DraggableWidget>
   void _setTargetOffsetFromPosition(
       AnchoringPosition target, Animation<double> controller,
       {Size? size}) {
-        // if size is null, assume we want to animate to inflate to the container size
+    // if size is null, assume we want to animate to inflate to the container size
     final widgetSize = size ?? containerSize!;
-    
+
     Offset _targetOffset = DraggableWidget.getOffsetForPosition(
         target, widgetSize, containerSize!);
 
     var begin = RelativeRect.fromSize(
-        Rect.fromLTWH(_currentOffset.dx, _currentOffset.dy, widgetSize.width, widgetSize.height),
+        Rect.fromLTWH(_currentOffset.dx, _currentOffset.dy, widgetSize.width,
+            widgetSize.height),
         containerSize!);
 
     _targetRect = RelativeRect.fromSize(
-        Rect.fromLTWH(_targetOffset.dx, _targetOffset.dy, widgetSize.width, widgetSize.height),
+        Rect.fromLTWH(_targetOffset.dx, _targetOffset.dy, widgetSize.width,
+            widgetSize.height),
         containerSize!);
-    
+
     animation = RelativeRectTween(
       begin: begin,
       end: _targetRect,
@@ -301,18 +302,31 @@ class _DraggableWidgetState extends State<DraggableWidget>
     });
   }
 
-  Future _animateTo(AnchoringPosition position,
-      {Size? size }) async {
+  Future _animateTo(AnchoringPosition position, {Size? size}) async {
     if (animationController.isAnimating) {
       animationController.stop();
     }
     animationController.reset();
 
-    _setTargetOffsetFromPosition(position, animationController,
-        size: size);
+    _setTargetOffsetFromPosition(position, animationController, size: size);
 
-      await animationController.forward();
+    await animationController.forward();
     if (widget.onAnchor != null) widget.onAnchor!(position);
+  }
+
+  void _setAvatarOffsetFromFingerPosition(Offset fingerOffset) {
+    // assume the avatar's size hasn't changed since _targetRect was last updated
+    final widgetSize = _targetRect.toSize(containerSize!);
+    // set the offset of the avatar to the finger offset, translated by half the width/height
+    // so the drag appears to move from the center, not the top left
+    _currentOffset =
+        fingerOffset.translate(-widgetSize.width / 2, -widgetSize.height / 2);
+
+    // then, cap the x/y offset to make sure the avatar can't go offscreen.
+    _currentOffset = Offset(
+        max(-widgetSize.width / 2, min(containerSize!.width - (widgetSize.width / 2), _currentOffset.dx)),
+        max(-widgetSize.height / 2,
+            min(containerSize!.height - (widgetSize.height / 2), _currentOffset.dy)));
   }
 
   @override
@@ -320,6 +334,12 @@ class _DraggableWidgetState extends State<DraggableWidget>
     // we need to wait one frame for the container dimensions to be calculated
     if (animation == null) {
       return Container();
+    }
+    List<BoxShadow> shadows = [];
+    if (dragging && widget.draggingShadow != null) {
+      shadows = [widget.draggingShadow!];
+    } else if (widget.normalShadow != null) {
+      shadows = [widget.normalShadow!];
     }
 
     return Stack(fit: StackFit.loose, children: [
@@ -346,16 +366,16 @@ class _DraggableWidgetState extends State<DraggableWidget>
                     if (widget.onPointerUp != null) widget.onPointerUp!();
                     isStillTouching = false;
 
-                    _currentOffset = (context.findRenderObject() as RenderBox)
-                        .globalToLocal(v.position);
+                    _setAvatarOffsetFromFingerPosition(v.position);
 
                     anchorPosition = _calculateAnchorPosition(
-                        _currentOffset.dx, _currentOffset.dy);
+                        v.position.dx, v.position.dy);
 
                     setState(() {
                       dragging = false;
                     });
-                    _animateTo(anchorPosition!, size:_targetRect.toSize(containerSize!));
+                    _animateTo(anchorPosition!,
+                        size: _targetRect.toSize(containerSize!));
                   },
                   onPointerDown: (v) async {
                     if (widget.dragController?.disabled == true) return;
@@ -364,6 +384,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
                     if (widget.onPointerDown != null) widget.onPointerDown!();
                     isStillTouching = true;
                   },
+                  // this is where we need to update the avatar's position from the finger position
                   onPointerMove: (v) async {
                     if (!isStillTouching) {
                       return;
@@ -373,19 +394,15 @@ class _DraggableWidgetState extends State<DraggableWidget>
                       animationController.reset();
                     }
                     if (widget.onPointerMove != null) widget.onPointerMove!();
-                    final widgetSize = _targetRect.toSize(containerSize!);
 
-                    _currentOffset = (context.findRenderObject() as RenderBox)
-                        .globalToLocal(v.position);
-                    _currentOffset = Offset(
-                        max(
-                            0,
-                            min(containerSize!.width - widgetSize.width,
-                                _currentOffset.dx)),
-                        max(
-                            0,
-                            min(containerSize!.height - widgetSize.height,
-                                _currentOffset.dy)));
+                    // get the local offset of the finger
+                    final fingerOffset =
+                        (context.findRenderObject() as RenderBox)
+                            .globalToLocal(v.position);
+
+                    _setAvatarOffsetFromFingerPosition(v.position);
+
+                    final widgetSize = _targetRect.toSize(containerSize!);
 
                     animation = AlwaysStoppedAnimation<RelativeRect>(
                         RelativeRect.fromRect(
@@ -405,11 +422,7 @@ class _DraggableWidgetState extends State<DraggableWidget>
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(
                                 widget.shadowBorderRadius),
-                            boxShadow: [
-                              dragging
-                                  ? widget.draggingShadow
-                                  : widget.normalShadow
-                            ],
+                            boxShadow: shadows,
                           ),
                           child: widget.child),
                     ),
