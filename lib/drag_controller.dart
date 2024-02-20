@@ -1,41 +1,72 @@
-part of draggable_widget;
+//
 
-class DragController {
-  bool disabled = false;
-  late _DraggableWidgetState _widgetState;
-  void _addState(_DraggableWidgetState _widgetState) {
-    this._widgetState = _widgetState;
+import 'package:drag_canvas/draggable_model.dart';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+
+class DragController<T extends DraggableModel> extends ChangeNotifier {
+  final canvasKey = GlobalKey();
+  Offset canvasOffset = Offset.zero;
+
+  final List<T> children = [];
+
+  final T Function() _create;
+
+  final Widget Function(T) widgetBuilder;
+
+  DragController(this._create, this.widgetBuilder);
+
+  T create(Offset offset) {
+    var newItem = this._create();
+    newItem.offset = offset / scale;
+    add(newItem);
+    return newItem;
   }
 
-  void disable() {
-    disabled = true;
+  void sort() {
+    Offset current = Offset.zero;
+    for (final item in children) {
+      item.offset = current;
+      current += Offset(0, 75);
+    }
+    notifyListeners();
   }
 
-  void enable() {
-    disabled = false;
+  void add(T added) {
+    children.add(added);
+    notifyListeners();
   }
 
-  /// Jump to any [AnchoringPosition] programatically
-  Future jumpTo(AnchoringPosition anchoringPosition) {
-    return _widgetState._animateTo(anchoringPosition);
+  void addAll(Iterable<T> added) {
+    children.addAll(added);
+    notifyListeners();
   }
 
-  void animateTo(AnchoringPosition position, { Size? size }) {
-    _widgetState._animateTo(position, size:size);
+  void reset() {
+    children.clear();
   }
 
-  /// Get the current screen [Offset] of the widget
-  Offset getCurrentPosition() {
-    return _widgetState._currentOffset;
+  ///
+  /// Sets the offset for the entire canvas (i.e. translating all drawn elements by this Offset). This allows panning the canvas.
+  ///
+  void translateCanvas(Offset offset, {bool relativeToLast = true}) {
+    print("Translating canvas");
+    for (var item in children) {
+      item.offset += offset;
+    }
+    canvasOffset += offset;
+    notifyListeners();
   }
 
-  /// Makes the widget visible
-  void showWidget() {
-    _widgetState._showWidget();
+  double scale = 1;
+
+  void setScale(double scaleDelta) {
+    scale += scaleDelta;
+    notifyListeners();
   }
 
-  /// Hide the widget
-  void hideWidget() {
-    _widgetState._hideWidget();
+  RenderBox getCanvasRenderBox() {
+    return canvasKey.currentContext!.findRenderObject() as RenderBox;
   }
 }
