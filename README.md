@@ -1,4 +1,12 @@
-# draggable_widget
+# Drag/drop widgets for Flutter
 
-A simple wrapper for any kind of draggable widget. Originally based on https://github.com/adar2378/draggable_widget, but with a few things cleaned up for easier integration with my projects.
+A package for dragging/dropping widgets in Flutter. 
+
+Very much WIP.
+
+- custom callbacks
+- handles/edge nodes
+
+
+
 
