@@ -54,7 +54,8 @@ class _DragCanvasState<T extends DraggableModel>
                 }
               },
               onPointerDown: (PointerDownEvent event) {
-                if (event.buttons == kSecondaryButton) {
+                if (event.buttons == kSecondaryButton &&
+                    !widget.controller.contextMenuDisabled) {
                   _cursorPosition = event.position;
                   showContextMenu(
                       _cursorPosition,
@@ -85,6 +86,7 @@ class _DragCanvasState<T extends DraggableModel>
                   delegate: DragCanvasDelegate(widget.controller),
                   children: _controller.children
                       .map((item) => DraggableWidget<T>(
+                          controller: _controller,
                           onDragUpdate: () {
                             setState(() {});
                           },
@@ -92,16 +94,6 @@ class _DragCanvasState<T extends DraggableModel>
                           child: _controller.widgetBuilder(item)))
                       .cast<Widget>()
                       .toList()))),
-      // Container(
-      //     width: 150,
-      //     child: Row(children: [
-      //       IconButton(
-      //         icon: Icon(Icons.sort),
-      //         onPressed: () {
-      //           widget.controller.sort();
-      //         },
-      //       )
-      //     ]))
     ]);
     ;
   }

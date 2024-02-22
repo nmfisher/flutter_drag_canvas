@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:drag_canvas/drag_controller.dart';
 import 'package:drag_canvas/draggable_model.dart';
 import 'package:drag_canvas/events/events.dart';
 import 'package:flutter/material.dart';
@@ -13,12 +14,14 @@ final class DraggableWidget<T extends DraggableModel> extends StatefulWidget {
   final double scale;
   final Widget child;
   final void Function() onDragUpdate;
+  final DragController<T> controller;
 
   DraggableWidget(
       {required this.item,
       this.scale = 1.0,
       required this.child,
-      required this.onDragUpdate})
+      required this.onDragUpdate,
+      required this.controller})
       : super(key: item.key);
 
   @override
@@ -89,6 +92,9 @@ class _DraggableWidgetState extends State<DraggableWidget> {
         key: _keys[loc],
         behavior: HitTestBehavior.opaque,
         onPointerDown: (v) {
+          if (widget.controller.drawEdgeDisabled) {
+            return;
+          }
           switch (loc) {
             case Handle.Right:
               _dragging[loc] = true;
@@ -162,8 +168,8 @@ class _DraggableWidgetState extends State<DraggableWidget> {
                             // behavior: HitTestBehavior.opaque,
                             onPointerUp: (v) async {
                               _dragging[Handle.Center] = false;
-                              widget.item.onEndDrag(widget.item, Handle.Center,
-                                  DragHandleEvent(v.position));
+                              widget.item.endDrag(
+                                  Handle.Center, DragHandleEvent(v.position));
                             },
                             onPointerDown: (v) async {
                               widget.item.startDrag(

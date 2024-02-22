@@ -15,7 +15,16 @@ class DragController<T extends DraggableModel> extends ChangeNotifier {
 
   final Widget Function(T) widgetBuilder;
 
-  DragController(this._create, this.widgetBuilder);
+  final bool translateCanvasDisabled;
+  final bool zoomCanvasDisabled;
+  final bool drawEdgeDisabled;
+  final bool contextMenuDisabled;
+
+  DragController(this._create, this.widgetBuilder,
+      {this.translateCanvasDisabled = false,
+      this.zoomCanvasDisabled = false,
+      this.drawEdgeDisabled = false,
+      this.contextMenuDisabled = false});
 
   T create(Offset offset) {
     var newItem = this._create();
@@ -51,7 +60,9 @@ class DragController<T extends DraggableModel> extends ChangeNotifier {
   /// Sets the offset for the entire canvas (i.e. translating all drawn elements by this Offset). This allows panning the canvas.
   ///
   void translateCanvas(Offset offset, {bool relativeToLast = true}) {
-    print("Translating canvas");
+    if (translateCanvasDisabled) {
+      return;
+    }
     for (var item in children) {
       item.offset += offset;
     }
@@ -62,6 +73,9 @@ class DragController<T extends DraggableModel> extends ChangeNotifier {
   double scale = 1;
 
   void setScale(double scaleDelta) {
+    if (zoomCanvasDisabled) {
+      return;
+    }
     scale += scaleDelta;
     notifyListeners();
   }

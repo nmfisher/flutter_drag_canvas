@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drag_canvas/drag_controller.dart';
 
 import 'package:drag_canvas/events/events.dart';
@@ -10,7 +12,9 @@ enum Handle { Left, Right, Center }
 class DraggableModel<T> {
   final DragController _dragController;
 
-  DraggableModel(this._dragController);
+  DraggableModel(this._dragController, {Offset? offset}) {
+    this.offset = offset ?? Offset.zero;
+  }
 
   ///
   /// A key used to uniquely identify the DraggableWidget associated with this instance.
@@ -41,7 +45,16 @@ class DraggableModel<T> {
 
   late RenderBox _canvasRb;
 
+  bool _translationEnabled = true;
+
+  void setTranslationEnabled(bool enabled) {
+    this._translationEnabled = enabled;
+  }
+
   void startDrag(Handle handle, DragHandleEvent event) {
+    if (!_translationEnabled) {
+      return;
+    }
     _canvasRb = _dragController.getCanvasRenderBox();
     var renderBox = (key.currentContext!.findRenderObject() as RenderBox);
 
@@ -92,6 +105,9 @@ class DraggableModel<T> {
   }
 
   void updateDrag(Handle handle, DragHandleEvent event) {
+    if (!_translationEnabled) {
+      return;
+    }
     var renderBox = (key.currentContext!.findRenderObject() as RenderBox);
 
     switch (handle) {
@@ -125,8 +141,26 @@ class DraggableModel<T> {
     // }
   }
 
-  void onEndDrag(DraggableModel item, Handle handle, DragHandleEvent event) {
+  final _onDragEndController = StreamController<Offset>.broadcast();
+  Stream get onDragEnd => _onDragEndController.stream;
+
+  ///
+  /// Called by DraggableWidget. If you need to know where an item has been dragged, listen to [onDragEnd]
+  ///
+  void endDrag(Handle handle, DragHandleEvent event) {
+    if (!_translationEnabled) {
+      return;
+    }
+    var renderBox = (key.currentContext!.findRenderObject() as RenderBox);
+    var offset = _canvasRb
+        .globalToLocal(event.globalPosition)
+        .scale(1 / _dragController.scale, 1 / _dragController.scale);
+    var newOffset =
+        offset.translate(-_localCursorOffset.dx, -_localCursorOffset.dy);
+    offset = newOffset.translate(
+        -_dragController.canvasOffset.dx, -_dragController.canvasOffset.dy);
     _localCursorOffset = Offset.zero;
+    _onDragEndController.add(offset);
   }
 
   bool hasInputConnection(DraggableModel model) {
