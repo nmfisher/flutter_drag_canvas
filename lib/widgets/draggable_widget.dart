@@ -181,13 +181,11 @@ class _DraggableWidgetState extends State<DraggableWidget> {
                                   Handle.Center, DragHandleEvent(v.position));
                               widget.onDragUpdate();
                             },
-                            child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 36),
-                                child: widget.child)),
-                        Positioned(
-                            left: 0, top: 0, child: _handle(Handle.Left)),
-                        Positioned(
-                            right: 0, top: 0, child: _handle(Handle.Right)),
+                            child: widget.child),
+                        // Positioned(
+                        //     left: 0, top: 0, child: _handle(Handle.Left)),
+                        // Positioned(
+                        //     right: 0, top: 0, child: _handle(Handle.Right)),
                       ]))
             ]);
   }

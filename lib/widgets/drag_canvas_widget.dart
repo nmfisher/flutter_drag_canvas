@@ -95,7 +95,6 @@ class _DragCanvasState<T extends DraggableModel>
                       .cast<Widget>()
                       .toList()))),
     ]);
-    ;
   }
 }
 

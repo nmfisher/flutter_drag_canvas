@@ -151,7 +151,8 @@ class DraggableModel<T> {
     if (!_translationEnabled) {
       return;
     }
-    var renderBox = (key.currentContext!.findRenderObject() as RenderBox);
+    _canvasRb = _dragController.getCanvasRenderBox();
+
     var offset = _canvasRb
         .globalToLocal(event.globalPosition)
         .scale(1 / _dragController.scale, 1 / _dragController.scale);
@@ -159,8 +160,9 @@ class DraggableModel<T> {
         offset.translate(-_localCursorOffset.dx, -_localCursorOffset.dy);
     offset = newOffset.translate(
         -_dragController.canvasOffset.dx, -_dragController.canvasOffset.dy);
+
     _localCursorOffset = Offset.zero;
-    _onDragEndController.add(offset);
+    _onDragEndController.add(this.offset);
   }
 
   bool hasInputConnection(DraggableModel model) {
